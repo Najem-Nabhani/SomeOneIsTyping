@@ -7,7 +7,7 @@ class DataStore {
             this.storage[threadId] = [];
         }
 
-        if (this.findUser(user)) {
+        if (this.findUser(threadId, sessionId)) {
             console.log(`user with sessionId: ${sessionId} is already present in thread: ${threadId}`);
             return this.storage[threadId].length;
         }
@@ -18,13 +18,13 @@ class DataStore {
 
     static unsubscribe(user) {
         const {threadId, sessionId} = user;
-        this.storage[threadId] = this.sessionId[threadId].filter(
+        this.storage[threadId] = this.storage[threadId].filter(
             (user) => user.sessionId !== sessionId
         );
+        console.log(`removing ${sessionId} from thread: ${threadId}`);
     }
 
-    static findUser(user) {
-        const {threadId, sessionId} = user;
+    static findUser(threadId, sessionId) {
         return this.storage[threadId].find((user) => user.sessionId === sessionId);
     }
 

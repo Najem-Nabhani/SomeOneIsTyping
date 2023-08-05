@@ -1,6 +1,7 @@
 const WebSocket = require('websocket').server;
 const http = require('http');
 const url = require('url');
+const datastore = require('./datastore');
 
 const server = http.createServer((req, res) => {
   const headers = {
@@ -11,7 +12,7 @@ const server = http.createServer((req, res) => {
   };
 
   // Fake Authentication
-  if (req.method === 'GET') {
+  if (req.url.match(/^\/auth/) && req.method === 'GET') {
     // Create random sessionId
     sessionId = Math.random().toString(36).substring(2, 15);
 
@@ -29,7 +30,6 @@ const wsServer = new WebSocket({
     httpServer: server
 });
 
-const datastore = {};
 wsServer.on('request', (request) => {
   const {sessionId, threadId} = url.parse(request.resourceURL)?.query;
 
@@ -46,14 +46,7 @@ wsServer.on('request', (request) => {
  
   const connection = Object.assign(request.accept(null, request.origin), {sessionId, threadId, isTyping: false, noOfUsersTyping: 0});
 
-  if (!Array.isArray(datastore[threadId])) {
-    datastore[threadId]= [];
-  }
-  
-  if (!datastore[threadId].find((user) => user.sessionId === sessionId)) {
-    datastore[threadId].push(connection);
-    console.log('added user with sessionid:', sessionId);
-  }
+  datastore.subscribe(connection);
 
   let intervalId;
   connection.on('message', (message) => {
@@ -72,26 +65,30 @@ wsServer.on('request', (request) => {
 
 });
 
-function displayTypingIndicator(threadId, exceptionSessionId) {
-  const sourceUser = datastore[threadId].find((user) => user.sessionId === exceptionSessionId);
+function displayTypingIndicator(threadId, sourceSessionId) {
+  const sourceUser = datastore.findUser(threadId, sourceSessionId);
   if (sourceUser.isTyping) {
     return;
   }
+
   sourceUser.isTyping = true;
-  datastore[threadId].forEach((user) => {
-    if (user.sessionId !== exceptionSessionId) {
+  datastore.notifyUsers(threadId, (user) => {
+    if (user.sessionId !== sourceSessionId) {
       user.noOfUsersTyping += 1;
       user.send(JSON.stringify({action: 'display-typing-indicator'}));
     }
   });
 }
 
-function hideTypingIndicator(threadId, exceptionSessionId) {
-  const sourceUser = datastore[threadId].find((user) => user.sessionId === exceptionSessionId);
-  sourceUser.isTyping = false;
-  datastore[threadId].forEach((user) => {
-    if (user.sessionId !== exceptionSessionId) {
+function hideTypingIndicator(threadId, sourceSessionId) {
+  const sourceUser = datastore.findUser(threadId, sourceSessionId);
+  if (!sourceUser.isTyping) {
+    return;
+  }
 
+  sourceUser.isTyping = false;
+  datastore.notifyUsers(threadId, (user) => {
+    if (user.sessionId !== sourceSessionId) {
       // the number of users typing shouldn't become negative
       user.noOfUsersTyping = Math.max(0, user.noOfUsersTyping-1);
 
@@ -103,9 +100,7 @@ function hideTypingIndicator(threadId, exceptionSessionId) {
 }
 
 wsServer.on('close', (closedConnection) => {
-  const {sessionId, threadId} = closedConnection;
-  datastore[threadId] = datastore[threadId].filter((user) => user.sessionId !== sessionId);
-  console.log("bye", sessionId);
+  datastore.unsubscribe(closedConnection);
 });
 
 const PORT = 8080;
