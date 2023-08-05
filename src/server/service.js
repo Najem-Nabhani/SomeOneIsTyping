@@ -71,9 +71,13 @@ function displayTypingIndicator(threadId, sourceSessionId) {
   }
 
   sourceUser.isTyping = true;
+  console.log(sourceSessionId, 'is typing...');
+
   datastore.notifyUsers(threadId, (user) => {
     if (user.sessionId !== sourceSessionId) {
       user.noOfUsersTyping += 1;
+      console.log(user.sessionId, 'is being notified by #', user.noOfUsersTyping, 'users');
+
       user.send(JSON.stringify({action: 'display-typing-indicator'}));
     }
   });
@@ -86,6 +90,8 @@ function hideTypingIndicator(threadId, sourceSessionId) {
   }
 
   sourceUser.isTyping = false;
+  console.log(sourceSessionId, 'is no longer typing');
+
   datastore.notifyUsers(threadId, (user) => {
     if (user.sessionId !== sourceSessionId) {
       // the number of users typing shouldn't become negative
