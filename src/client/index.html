@@ -17,6 +17,7 @@
       const data = await res.json();
 
       sessionStorage.setItem("sessionId", data.sessionId);
+      document.getElementById('id-indicator').innerHTML = `ID: ${data.sessionId}`;
       document.getElementById('session-id-display-region').textContent = 'Client logged in. Refresh to connect to socket.';
     }).catch((err) => console.error(err));
   }
@@ -26,7 +27,8 @@
 
   // listen to the 'open' event to know when the socket is open
   socket.addEventListener('open', (_event) => {
-    document.getElementById('status-indicator').innerHTML = 'Status: ONLINE'
+    document.getElementById('id-indicator').innerHTML = `ID: ${sessionId}`;
+    document.getElementById('status-indicator').innerHTML = 'Status: ONLINE';
     console.log('Socket is open and ready to send and receive data');
   });
 
@@ -90,7 +92,9 @@
        making testing multiple user interaction easier. Browser's new tabs will copy the session -->
   <a id='nav-link' href="" target="_blank">Open New Tab</a>
 
+  <p id="id-indicator">ID: none</p>
   <p id="status-indicator">Status: OFFLINE</p>
+
   <p id="typing-indicator" style="display: none;">Someone is typing...</p>
   <input id="chatbox" placeholder="Add Your thoughts" oninput="notifyIfTyping(event)" />
 
