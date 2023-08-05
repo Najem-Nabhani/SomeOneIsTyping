@@ -13,7 +13,7 @@
   const sessionId = sessionStorage.getItem("sessionId");
   if (!sessionId) {
     // GET simulation of auth request. Returns sessionId
-    fetch('http://localhost:8080/').then(async (res) => {
+    fetch('http://localhost:8080/auth').then(async (res) => {
       const data = await res.json();
 
       sessionStorage.setItem("sessionId", data.sessionId);
@@ -32,7 +32,7 @@
 
   // listen to the 'close' event to know when the socket is closed
   socket.addEventListener('close', (event) => {
-    document.getElementById('status-indicator').innerHTML = 'Status: OFFLINE, server closed'
+    document.getElementById('status-indicator').innerHTML = 'Status: OFFLINE, server issue!'
     console.warn('Socket is closed:', event);
   });
 
