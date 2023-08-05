@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<script>
+
+  // the following fake auth request is called if not already logged in.
+  const sessionId = sessionStorage.getItem("sessionId");
+  if (!sessionId) {
+    // GET simulation of auth request. Returns sessionId
+    fetch('http://localhost:8080/').then(async (res) => {
+      const data = await res.json();
+
+      sessionStorage.setItem("sessionId", data.sessionId);
+      document.getElementById('session-id-display-region').textContent = 'Client logged in. Refresh to connect to socket.';
+    }).catch((err) => console.error(err));
+  }
+
+  const threadId = getThreadId();
+  const socket = new WebSocket(`ws://localhost:8080?threadId=${threadId}&sessionId=${sessionId}`);
+
+  // listen to the 'open' event to know when the socket is open
+  socket.addEventListener('open', (_event) => {
+    document.getElementById('status-indicator').innerHTML = 'Status: ONLINE'
+    console.log('Socket is open and ready to send and receive data');
+  });
+
+  // listen to the 'close' event to know when the socket is closed
+  socket.addEventListener('close', (event) => {
+    document.getElementById('status-indicator').innerHTML = 'Status: OFFLINE, server closed'
+    console.warn('Socket is closed:', event);
+  });
+
+  // listen to the 'message' event to receive data from the socket
+  socket.addEventListener('message', (event) => {
+    const message = JSON.parse(event.data);
+
+    switch (message.action) {
+      case 'display-typing-indicator':
+        document.getElementById('typing-indicator').style = "display: block;";
+        break;
+      case 'hide-typing-indicator':
+        document.getElementById('typing-indicator').style = "display: none;";
+        break;
+    }
+  });
+
+  function notifyIfTyping(event) {
+    const typingInputValue = event.target.value;
+    const sessionId = sessionStorage.getItem("sessionId");
+    if (!!typingInputValue && typingInputValue.length > 0) {
+      socket.send(JSON.stringify({
+        action: 'typing',
+        threadId: getThreadId(),
+        sessionId
+      }));
+    }
+  }
+
+  function sendMessage() {
+    // no need to notify socket if there's nothing in the input chatbox
+    const chatBoxElement = document.getElementById('chatbox');
+    if (chatBoxElement.value === '') {
+      return;
+    }
+
+    // clear chatbox when sending a message
+    chatBoxElement.value = '';
+
+    socket.send(JSON.stringify({
+      action: 'stopTyping',
+      threadId: getThreadId(),
+      sessionId: sessionStorage.getItem("sessionId")
+    }));
+  }
+
+  function getThreadId() {
+    return window.location.pathname.split('/')[2];
+  }
+</script>
+
+<body>
+  <h1> Chat Conversation </h1>
+  <!-- The link opens a new tab with same url and thread id without copying over the sessionStorage,
+       making testing multiple user interaction easier. Browser's new tabs will copy the session -->
+  <a id='nav-link' href="" target="_blank">Open New Tab</a>
+
+  <p id="status-indicator">Status: OFFLINE</p>
+  <p id="typing-indicator" style="display: none;">Someone is typing...</p>
+  <input id="chatbox" placeholder="Add Your thoughts" oninput="notifyIfTyping(event)" />
+
+  <button onclick="sendMessage()">Send Message!</button>
+  <p id="session-id-display-region"></p>
+</body>
+
+</html>

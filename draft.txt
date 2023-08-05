@@ -1,0 +1,93 @@
+When someone is texting you in a modern chat application, you'll probably see a message 
+saying that 'someone is typing'. You can find this in Facebook, Slack, and many others.
+In this article, we will walk over the design challenges of makings this feature.
+
+For simplicities sake, I will be using the word "indicator" to refer to the 'someone is typing' feature.
+
+# What we will be building?
+[
+  demo/screenshots to the app, when someone is typing the other will see the indicator
+]
+You can find the source code to this project in Github. [link/githubt preview]
+
+# Requirments
+A feature can be simple or complex based on the requirments it meets, below are the requirments
+I chose for this feature:
+## Functional requirments:
+  1. When a user is typing a message in an input field for a thread, all users on the same thread should see the indicator.
+  2. The user who is typing a message should not see a typing indicator for their own typing.
+  3. A typing indicator will be present while a user is actively typing; pausing for 5 seconds should hide the indicator.
+
+## Non-functional requirments:
+  1. Scalability - the feature should work for a variable number of users and threads.
+  2. Security - users should not be able to determine secret details about other users.
+
+## Out of scope:
+  1. Sending messages. When a message/comment is published by the typing user, the indicator should
+  no longer be present.
+
+# High-level Design 
+Let's laydown what we need to build on a high-level, before diving into the details:
+1. We have a number of threads. Multiple users can be present on each thread. 1:M relationship.
+2. Each user inside a thread should be able to type text in an input field.
+3. When a user is actively typing, all users except ones-self should see the typing indicator.
+4. Users should not be able to hack other users.
+---------------------------
+1. Clients will be presented with a simple input field that is either present or hidden.
+1. Server will have a datastore for "thread to users mapping".
+1. Clients send notification to the server with the threadId and the server notifies other users on the same thread with the typing indicator.
+---------------------------
+
+The datastore is simple, we can mock it with a simple JS object on the server side.
+The key will be the threadId and the value is an array of users details of users as the value.
+
+For the notifications, we need an on-going real-time events emitted from and to clients and the server, for that a traditional 
+request API won't be sufficent, instead we can use Sockets.
+
+We have 2 flows:
+1. Connecting to the server and storing client information (fake sign-up / authentication)
+2. Notifying the server with the typing indication.
+
+1. Server Connection:
+[client] -> connect(threadId) -> [server] --> saveUser(user, threadId) -> [datastore] 
+
+2. Notification:
+[client] -> notify(threadId) -> [server] <- getUsers(thread) -> [datastore] 
+                                    |
+                    {loop over clients and notify each.}
+                                    |
+              [client] <- notifies -+ 
+
+
+
+
+
+
+
+
+
+
+1. Talking about Sockets - why?
+2. Talking about determining if a user is 'actively' typing.
+ -> input box should not be empty
+ -> time between next message (client/server should handle this?)
+
+Now how to prevent viewing a typing indicator for the same user? 
+3. Unique users, creating a sessionId.
+ -> how long should we store the sessionId cookie?
+ -> how to read the sessionId value from the cookie in the server side?
+ -> compare the typer sessionId on the client side to determine if he/she is the typer. But
+  this is not safe as the clinet will know the sessionId of other users if he/she is not the typer.
+  Also what about multiple typers?
+
+Up to this point you would have one thread, one typer and one recipent.
+4. Scalability:
+ -> Scaling the number of threads, adding a path value to determine which thread, because it won't make sense to create a WS per thread.
+ -> Scaling the number of typers/recipents, sending a notifications to all connections doesn't make sense now, so we need a way to store 
+    the number of users connected to a thread instead of looping over all connections with wsServer.connections.
+
+    IMPLEMENT:
+    1. Whenever a new user connects to a thread store the connection in database to a particular threadId.
+    2. Whenever a typing notification is recieved, store the typer's sessionId, so a typer doesn't notify themselves.
+    3. Whenever a hide notification is to be send, remove that particular typer from database, if the thread no longer has
+    a typer, emit a 'hide typing indicator' notification to all clients in that threadId.
